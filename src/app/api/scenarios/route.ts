@@ -1,10 +1,10 @@
-import { prisma } from '@/lib/prisma';
+import { getPrisma } from '@/lib/prisma';
 import { NextRequest, NextResponse } from 'next/server';
 
 // GET — list all scenarios
 export async function GET() {
   try {
-    const scenarios = await prisma.scenario.findMany({
+    const scenarios = await getPrisma().scenario.findMany({
       orderBy: { updatedAt: 'desc' },
     });
     return NextResponse.json(scenarios);
@@ -21,14 +21,14 @@ export async function POST(req: NextRequest) {
 
     if (id) {
       // Update existing
-      const updated = await prisma.scenario.update({
+      const updated = await getPrisma().scenario.update({
         where: { id },
         data: { name, ...params },
       });
       return NextResponse.json(updated);
     } else {
       // Create new
-      const created = await prisma.scenario.create({
+      const created = await getPrisma().scenario.create({
         data: { name: name || 'Scenario', ...params },
       });
       return NextResponse.json(created);
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();
-    await prisma.scenario.delete({ where: { id } });
+    await getPrisma().scenario.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: 'Failed to delete' }, { status: 500 });
