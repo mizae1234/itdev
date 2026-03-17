@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useStore } from '@/store/useStore';
 
 const fields: { label: string; field: string; min?: number; max?: number }[] = [
@@ -16,6 +16,8 @@ const fields: { label: string; field: string; min?: number; max?: number }[] = [
   { label: 'วัสดุสิ้นเปลือง', field: 'misc', min: 0 },
   { label: 'ค่า Software', field: 'software', min: 0 },
 ];
+
+const paramFields = ['constructionCost', 'equipmentCost', 'jobsPerMonth', 'pricePerJob', 'cogsPercent', 'staffCost', 'rent', 'paintCost', 'utilities', 'misc', 'software', 'capacityPercent'] as const;
 
 function fmt(n: number) {
   return n.toLocaleString('en-US');
@@ -69,9 +71,79 @@ function NumberInput({ label, field, min, max }: { label: string; field: string;
   );
 }
 
+interface Scenario {
+  id: string;
+  name: string;
+  [key: string]: unknown;
+}
+
 export default function Sidebar() {
   const store = useStore();
   const { derived, setField, capacityPercent } = store;
+
+  const [scenarioName, setScenarioName] = useState('Default');
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [scenarios, setScenarios] = useState<Scenario[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
+  const [showList, setShowList] = useState(false);
+
+  // Load scenarios on mount
+  useEffect(() => {
+    fetch('/api/scenarios').then(r => r.json()).then(data => {
+      if (Array.isArray(data)) setScenarios(data);
+    }).catch(() => {});
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg('');
+    const params: Record<string, unknown> = { name: scenarioName };
+    if (activeId) params.id = activeId;
+    for (const f of paramFields) {
+      params[f] = store[f];
+    }
+    try {
+      const res = await fetch('/api/scenarios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActiveId(data.id);
+        setSaveMsg('✅ บันทึกแล้ว');
+        // Refresh list
+        const list = await fetch('/api/scenarios').then(r => r.json());
+        if (Array.isArray(list)) setScenarios(list);
+      } else {
+        setSaveMsg('❌ ' + (data.error || 'Error'));
+      }
+    } catch {
+      setSaveMsg('❌ ไม่สามารถเชื่อมต่อ DB');
+    }
+    setSaving(false);
+    setTimeout(() => setSaveMsg(''), 3000);
+  };
+
+  const handleLoad = (s: Scenario) => {
+    setActiveId(s.id);
+    setScenarioName(s.name);
+    for (const f of paramFields) {
+      if (f in s) setField(f as never, Number(s[f]));
+    }
+    setShowList(false);
+  };
+
+  const handleDelete = async (id: string) => {
+    await fetch('/api/scenarios', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    });
+    setScenarios(prev => prev.filter(s => s.id !== id));
+    if (activeId === id) setActiveId(null);
+  };
 
   return (
     <aside className="w-full lg:w-80 xl:w-96 bg-white border-r border-gray-100 lg:h-screen lg:overflow-y-auto lg:sticky lg:top-0 p-5 space-y-5 shrink-0">
@@ -124,6 +196,55 @@ export default function Sidebar() {
         <p className="text-2xl font-bold text-teal-700">{derived.breakEvenJobs === Infinity ? '—' : fmt(derived.breakEvenJobs)}</p>
         <p className="text-xs text-teal-500">งานต่อเดือนที่ต้องการ</p>
       </div>
+
+      {/* Save / Load Scenario */}
+      <div className="pt-3 border-t border-gray-100 space-y-3">
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">💾 บันทึก Scenario</h3>
+        <input
+          type="text"
+          placeholder="ชื่อ Scenario"
+          value={scenarioName}
+          onChange={(e) => setScenarioName(e.target.value)}
+          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-teal-400/40"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 px-3 py-2.5 bg-gradient-to-r from-teal-500 to-cyan-500 text-white text-xs font-semibold rounded-xl hover:from-teal-600 hover:to-cyan-600 transition-all disabled:opacity-50 shadow-sm"
+          >
+            {saving ? 'กำลังบันทึก...' : activeId ? '💾 อัปเดต' : '💾 บันทึกใหม่'}
+          </button>
+          <button
+            onClick={() => { setActiveId(null); setScenarioName(''); }}
+            className="px-3 py-2.5 bg-gray-100 text-gray-600 text-xs font-semibold rounded-xl hover:bg-gray-200 transition-all"
+          >
+            + ใหม่
+          </button>
+        </div>
+        {saveMsg && <p className="text-xs text-center">{saveMsg}</p>}
+
+        {/* Load Scenarios */}
+        <button
+          onClick={() => setShowList(!showList)}
+          className="w-full px-3 py-2 bg-gray-50 border border-gray-200 text-xs font-medium text-gray-600 rounded-xl hover:bg-gray-100 transition-all"
+        >
+          📂 โหลด Scenario ({scenarios.length})
+        </button>
+        {showList && scenarios.length > 0 && (
+          <div className="space-y-1.5 max-h-40 overflow-y-auto">
+            {scenarios.map((s) => (
+              <div key={s.id} className={`flex items-center justify-between px-3 py-2 rounded-lg text-xs ${s.id === activeId ? 'bg-teal-50 border border-teal-200' : 'bg-gray-50 border border-gray-100'}`}>
+                <button onClick={() => handleLoad(s)} className="text-left flex-1 font-medium text-gray-700 hover:text-teal-600 truncate">
+                  {s.name}
+                </button>
+                <button onClick={() => handleDelete(s.id)} className="text-red-400 hover:text-red-600 ml-2 shrink-0">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
+

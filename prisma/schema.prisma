@@ -1,0 +1,27 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Scenario {
+  id              String   @id @default(cuid())
+  name            String   @default("Default")
+  constructionCost Int     @default(10000000)
+  equipmentCost   Int      @default(4000000)
+  jobsPerMonth    Int      @default(200)
+  pricePerJob     Int      @default(25000)
+  cogsPercent     Int      @default(70)
+  staffCost       Int      @default(430000)
+  rent            Int      @default(70000)
+  paintCost       Int      @default(300000)
+  utilities       Int      @default(120000)
+  misc            Int      @default(100000)
+  software        Int      @default(30000)
+  capacityPercent Int      @default(100)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
