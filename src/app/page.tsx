@@ -12,6 +12,7 @@ const SensitivityAnalysis = dynamic(() => import('@/components/SensitivityAnalys
 const ServiceJourney = dynamic(() => import('@/components/ServiceJourney'), { ssr: false });
 const ProjectSummary = dynamic(() => import('@/components/ProjectSummary'), { ssr: false });
 const StaffStructure = dynamic(() => import('@/components/StaffStructure'), { ssr: false });
+const ExportPDF = dynamic(() => import('@/components/ExportPDF'), { ssr: false });
 
 export default function Home() {
   return (
@@ -20,7 +21,7 @@ export default function Home() {
       <Sidebar />
 
       {/* Main Content */}
-      <main className="flex-1 p-5 md:p-8 lg:p-10 space-y-10 max-w-6xl">
+      <main id="pdf-content" className="flex-1 p-5 md:p-8 lg:p-10 space-y-10 max-w-6xl">
         <HeroSection />
         <ServiceJourney />
         <StaffStructure />
@@ -37,6 +38,9 @@ export default function Home() {
           <p className="mt-1">เอกสารลับ • สำหรับนักลงทุนเท่านั้น</p>
         </footer>
       </main>
+
+      {/* Export Button */}
+      <ExportPDF />
     </div>
   );
 }
