@@ -6,7 +6,6 @@ import { useStore } from '@/store/useStore';
 const fields: { label: string; field: string; min?: number; max?: number }[] = [
   { label: 'ค่าก่อสร้าง', field: 'constructionCost', min: 0 },
   { label: 'ค่าอุปกรณ์', field: 'equipmentCost', min: 0 },
-  { label: 'จำนวนงาน / เดือน', field: 'jobsPerMonth', min: 0 },
   { label: 'ราคา / งาน', field: 'pricePerJob', min: 0 },
   { label: 'ค่าอะไหล่ (COGS) %', field: 'cogsPercent', min: 0, max: 100 },
   { label: 'ค่าแรงพนักงาน 14 คน (Max)', field: 'staffCost', min: 0 },
@@ -88,12 +87,35 @@ export default function Sidebar() {
   const [saveMsg, setSaveMsg] = useState('');
   const [showList, setShowList] = useState(false);
 
-  // Load scenarios on mount
+  // Load scenarios on mount — auto-load the latest one
   useEffect(() => {
-    fetch('/api/scenarios').then(r => r.json()).then(data => {
-      if (Array.isArray(data)) setScenarios(data);
+    fetch('/api/scenarios').then(r => r.json()).then((data: Scenario[]) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setScenarios(data);
+        // Auto-load latest (first in list, sorted by updatedAt desc)
+        const latest = data[0];
+        setActiveId(latest.id);
+        setScenarioName(latest.name);
+        for (const f of paramFields) {
+          if (f in latest) setField(f as never, Number(latest[f]));
+        }
+      }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleResetDefaults = () => {
+    setActiveId(null);
+    setScenarioName('Default');
+    const defaults: Record<string, number> = {
+      constructionCost: 10_000_000, equipmentCost: 4_000_000, jobsPerMonth: 200,
+      pricePerJob: 25_000, cogsPercent: 70, staffCost: 430_000, rent: 70_000,
+      paintCost: 300_000, utilities: 120_000, misc: 100_000, software: 30_000, capacityPercent: 100,
+    };
+    for (const f of paramFields) {
+      setField(f as never, defaults[f]);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -166,12 +188,13 @@ export default function Sidebar() {
         ))}
       </div>
 
-      {/* Capacity Slider */}
+      {/* Capacity & Jobs */}
       <div className="pt-3 border-t border-gray-100 space-y-2">
-        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">อัตราการใช้กำลังการผลิต</h3>
+        <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">กำลังการผลิต</h3>
+        <label className="text-xs font-medium text-gray-500 mb-1 block">อัตราการใช้กำลังการผลิต</label>
         <div className="flex items-center justify-between">
           <span className="text-2xl font-bold text-teal-600">{capacityPercent}%</span>
-          <span className="text-[11px] text-gray-400">{Math.round(store.jobsPerMonth * capacityPercent / 100)} งาน/เดือน</span>
+          <span className="text-[11px] text-gray-400">จากสูงสุด {fmt(store.jobsPerMonth)} งาน</span>
         </div>
         <input
           type="range"
@@ -187,6 +210,12 @@ export default function Sidebar() {
           <span>100%</span>
           <span>200%</span>
           <span>300%</span>
+        </div>
+        {/* Effective Jobs */}
+        <div className="bg-gradient-to-r from-teal-500 to-cyan-500 rounded-xl p-3 text-center">
+          <p className="text-[10px] text-teal-100 uppercase tracking-wider font-semibold">จำนวนงานจริงที่ใช้คำนวณ</p>
+          <p className="text-xl font-bold text-white">{fmt(Math.round(store.jobsPerMonth * capacityPercent / 100))} <span className="text-sm font-normal text-teal-100">งาน/เดือน</span></p>
+          <p className="text-[10px] text-teal-200">{fmt(store.jobsPerMonth)} × {capacityPercent}%</p>
         </div>
       </div>
 
@@ -222,6 +251,12 @@ export default function Sidebar() {
             + ใหม่
           </button>
         </div>
+        <button
+          onClick={handleResetDefaults}
+          className="w-full px-3 py-2 bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold rounded-xl hover:bg-amber-100 transition-all"
+        >
+          ↩ รีเซ็ตค่าเริ่มต้น
+        </button>
         {saveMsg && <p className="text-xs text-center">{saveMsg}</p>}
 
         {/* Load Scenarios */}
