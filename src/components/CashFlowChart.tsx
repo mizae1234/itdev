@@ -27,10 +27,11 @@ interface MonthData {
 }
 
 export default function CashFlowChart() {
-  const { constructionCost, equipmentCost, jobsPerMonth, pricePerJob, cogsPercent, staffCost, rent, paintCost, utilities, misc, software } = useStore();
+  const { constructionCost, equipmentCost, jobsPerMonth, pricePerJob, cogsPercent, staffCost, rent, paintCost, utilities, misc, software, capacityPercent } = useStore();
 
   const totalFixed = staffCost + rent + paintCost + utilities + misc + software;
   const constructionMonthly = constructionCost / 5;
+  const effectiveJobs = Math.round(jobsPerMonth * (capacityPercent / 100));
 
   const { months, peakDebt, peakDebtIdx, firstProfitIdx, fullCapacityIdx, paybackIdx } = useMemo(() => {
     const data: MonthData[] = [];
@@ -49,7 +50,7 @@ export default function CashFlowChart() {
     // Phase 3: Ramp-up (months 7-10)
     const rampPcts = [25, 50, 75, 100];
     for (let i = 0; i < rampPcts.length; i++) {
-      const capPct = rampPcts[i];
+      const capPct = Math.round(capacityPercent * (rampPcts[i] / 100));
       const effJobs = Math.round(jobsPerMonth * (capPct / 100));
       const rev = effJobs * pricePerJob;
       const cogs = rev * (cogsPercent / 100);
@@ -58,8 +59,8 @@ export default function CashFlowChart() {
       data.push({ month: 7 + i, label: `${7 + i}`, phase: 3, phaseName: 'Ramp-up', cashFlow: profit, cumulative: cum, capacity: capPct });
     }
 
-    // Phase 4: Full capacity (months 11+ until payback or max 48)
-    const fullRev = jobsPerMonth * pricePerJob;
+    // Phase 4: Full capacity at selected % (months 11+ until payback or max 48)
+    const fullRev = effectiveJobs * pricePerJob;
     const fullCogs = fullRev * (cogsPercent / 100);
     const fullProfit = fullRev - fullCogs - totalFixed;
 
@@ -67,12 +68,12 @@ export default function CashFlowChart() {
 
     for (let m = 11; m <= maxMonth; m++) {
       cum += fullProfit;
-      data.push({ month: m, label: `${m}`, phase: 4, phaseName: 'เต็มกำลัง', cashFlow: fullProfit, cumulative: cum, capacity: 100 });
+      data.push({ month: m, label: `${m}`, phase: 4, phaseName: 'เต็มกำลัง', cashFlow: fullProfit, cumulative: cum, capacity: capacityPercent });
       if (cum >= 0 && fullProfit > 0) {
         // Add a couple more months after payback for visual
         for (let extra = 1; extra <= 2; extra++) {
           cum += fullProfit;
-          data.push({ month: m + extra, label: `${m + extra}`, phase: 4, phaseName: 'เต็มกำลัง', cashFlow: fullProfit, cumulative: cum, capacity: 100 });
+          data.push({ month: m + extra, label: `${m + extra}`, phase: 4, phaseName: 'เต็มกำลัง', cashFlow: fullProfit, cumulative: cum, capacity: capacityPercent });
         }
         break;
       }
@@ -88,9 +89,9 @@ export default function CashFlowChart() {
     }
 
     return { months: data, peakDebt: pd, peakDebtIdx: pdi, firstProfitIdx: fpi, fullCapacityIdx: fci, paybackIdx: pbi };
-  }, [constructionCost, equipmentCost, constructionMonthly, jobsPerMonth, pricePerJob, cogsPercent, totalFixed]);
+  }, [constructionCost, equipmentCost, constructionMonthly, jobsPerMonth, pricePerJob, cogsPercent, totalFixed, capacityPercent, effectiveJobs]);
 
-  const fullProfit = jobsPerMonth * pricePerJob - jobsPerMonth * pricePerJob * (cogsPercent / 100) - totalFixed;
+  const fullProfit = effectiveJobs * pricePerJob - effectiveJobs * pricePerJob * (cogsPercent / 100) - totalFixed;
 
   // Phase widths for the highway bar
   const totalMonths = months.length;
@@ -136,7 +137,7 @@ export default function CashFlowChart() {
           </div>
           <div>
             <p className="text-xs font-semibold text-amber-700">เดือน 11+: Phase 4</p>
-            <p className="text-[10px] text-gray-400">เต็มกำลังผลิต ({fmtFull(jobsPerMonth)} Jobs/เดือน)</p>
+            <p className="text-[10px] text-gray-400">เต็มกำลังผลิต ({fmtFull(effectiveJobs)} Jobs/เดือน, {capacityPercent}%)</p>
           </div>
         </div>
       </div>
